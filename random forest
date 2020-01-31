@@ -1,0 +1,88 @@
+# Random Forest in R: From https://www.youtube.com/watch?v=dJclNIN-TPo
+
+# Read data
+data<-read.csv("CTG.csv", header = TRUE)
+
+
+str(data)
+data$NSP <-as.factor(data$NSP)
+table(data$NSP)
+
+#Data partition
+set.seed(123)
+ind<-sample(2, nrow(data), replace = TRUE, prob = c(0.7, 0.3))
+train<-data[ind==1,]
+test<-data[ind==2,]
+
+#Random Forest model
+# developed by aggregating trees
+# Can be used for classification or regression
+# Avoids overfitting
+# Can deal with a large number of features
+# Helps with feature selection based on importance
+# User-friendly: only 2 free parameters
+  # trees: ntree, default 500
+  # variables randomly samples as candidates at each split -- mtry, dflt is sq.root(p) for classification p/3
+
+#How does it work?
+# 1. Draw ntree bootstrap samples
+# 2. For each bootstrap sample, grow un-pruned tree by choosing best split based on random sample of mtry predictors at each node
+# 3. Predict new data using majority votes for classification and average for regression based on ntree trees.
+
+# Let's get started with the Random Forest
+library(randomForest)
+set.seed(222)
+rf<- randomForest(NSP~., data=train,
+                  ntree = 300,
+                  mtry = 8,
+                  importance = TRUE,
+                  proximity = TRUE)
+print(rf)
+attributes(rf)
+rf$confusion
+
+# Prediction and Confusion Matrix- training data
+library(caret)
+p1<-predict(rf, train)
+confusionMatrix(p1, train$NSP)
+
+# Out of Bag OOB Error: For each bootstrap iteration and related tree, prediction error using data not in bootstrap sample.
+# Classification: Accuracy.    Regression: R-sq & MSE
+
+# Prediction with Test Data
+p2<-predict(rf, test)
+confusionMatrix(p2, test$NSP)
+
+# Error rate of Random Forest
+plot(rf) #as # of trees grows, error rate drops. 
+
+#Tune random forest model  
+t<- tuneRF(train[,-22], train[,22],
+       stepFactor = 0.5,
+       plot = TRUE,
+       ntreeTry = 300,
+       trace = TRUE,
+       improve =  0.05)
+# Best value = 8
+
+# number of nodes for trees
+hist(treesize(rf),
+     main = "No. of Nodes for the Trees",
+     col = "green")
+
+# Variable Importance
+varImpPlot(rf,
+           sort = T,
+           n.var = 10,
+           main = "Top 10 - Variable Importance")
+importance(rf)
+varUsed(rf)
+
+# Partial dependence plot:
+partialPlot(rf, train, ASTV, "3")
+
+# Extract single tree
+getTree(rf, 1, labelVar = T)
+
+#Multi-dimensional scaling plot of Proximity Matrix
+MDSplot(rf, train$NSP)
